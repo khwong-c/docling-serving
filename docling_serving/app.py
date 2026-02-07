@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 
@@ -48,6 +49,17 @@ class ColoredLogFormatter(logging.Formatter):
         return super().format(record)
 
 
+class JSONLogFormatter(logging.Formatter):
+    def format(self, record):
+        msg = super().format(record)
+        return json.dumps({
+            "level": str(record.levelname),
+            "name": str(record.name),
+            "time": self.formatTime(record, self.datefmt),
+            "message": msg,
+        })
+
+
 logging.basicConfig(
     level=logging.INFO,  # Set the logging level
     format="%(levelname)s:\t%(asctime)s - %(name)s - %(message)s",
@@ -57,6 +69,7 @@ logging.basicConfig(
 # Override the formatter with the custom ColoredLogFormatter
 root_logger = logging.getLogger()  # Get the root logger
 for handler in root_logger.handlers:  # Iterate through existing handlers
+    # handler.setFormatter(JSONLogFormatter("%(message)s"))
     if handler.formatter:
         handler.setFormatter(ColoredLogFormatter(handler.formatter._fmt))
 
