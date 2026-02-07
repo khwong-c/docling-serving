@@ -21,21 +21,21 @@ router = APIRouter()
 )
 async def poll_status_handler(
         task_id: StrictStr = Path(..., description=""),
-        wait: Annotated[Optional[Union[StrictFloat, StrictInt]], Field(
+        wait: Annotated[Optional[int], Field(
             description="Number of seconds to wait for a completed status.")
-        ] = Query(0.0,
+        ] = Query(0,
                   description="Number of seconds to wait for a completed status.",
                   alias="wait"),
         queue: PQueue = Depends(create_queue),
 ) -> JobSummary:
-    job = await queue.get_job(task_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.status in (JobStatus.COMPLETED, JobStatus.FAILED):
-        return create_summary_from_job(job)
-    await asyncio.sleep(wait)
-
-    job = await queue.get_job(task_id)
+    job = None
+    for i in range(wait + 1):
+        job = await queue.get_job(task_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status in (JobStatus.COMPLETED, JobStatus.FAILED):
+            return create_summary_from_job(job)
+        await asyncio.sleep(1)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return create_summary_from_job(job)
