@@ -1,11 +1,10 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from docling_serving.api.models.request import ConvertRequest
-from docling_serving.api.models.response import ConvertResponse, JobSummary, JobResponse
+from docling_serving.api.models.response import JobSummary, JobResponse
 from .parser import create_summary_from_job
-from ..workers.convert import convert
-from ..workers.work_queue import create_queue, PQueue, Job, JobStatus
+from ..workers.work_queue import create_queue, PQueue, JobStatus
 
 router = APIRouter()
 

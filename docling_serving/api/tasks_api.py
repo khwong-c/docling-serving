@@ -56,6 +56,8 @@ async def fetch_result_handler(
         raise HTTPException(status_code=404, detail="Job not found")
     return JobResponse(
         **create_summary_from_job(job).model_dump(),
+        result=job.result,
+        exception=job.exception,
         create_time=job.create_time,
         complete_time=job.complete_time,
         duration=(job.complete_time - job.create_time).total_seconds() if job.complete_time else 0.0,

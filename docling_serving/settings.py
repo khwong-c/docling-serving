@@ -23,6 +23,14 @@ class AsyncEngine(str, enum.Enum):
     RQ = "rq"
 
 
+class RQSettings(BaseSettings):
+    host: str = "localhost"
+    port: int = 6379
+    db: int = 0
+    password: Optional[str] = None
+    queue_name: str = "docling_serving"
+
+
 class JobSettings(BaseSettings):
     clean_after_retrieve: bool = False
     clean_after_interval: int = 60
@@ -39,6 +47,9 @@ class DoclingServeSettings(BaseSettings):
     )
     artifacts_path: Optional[Path] = None
     job_settings: JobSettings = JobSettings()
+
+    async_engine: AsyncEngine = AsyncEngine.LOCAL
+    rq_settings: RQSettings = RQSettings()
 
 
 uvicorn_settings = UvicornSettings()

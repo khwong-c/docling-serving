@@ -25,6 +25,7 @@ class JobResponse(BaseModel):
     id: str
     status: ConversionStatus
     result: Optional[ConvertResponse] = None
+    exception: Optional[str] = None
     create_time: datetime
     complete_time: datetime | None = None
     duration: float = 0.0
