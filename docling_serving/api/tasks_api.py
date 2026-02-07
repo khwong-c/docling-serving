@@ -1,14 +1,14 @@
-# coding: utf-8
 import asyncio
 
 from fastapi import APIRouter, Path, Query, Depends, HTTPException
-from pydantic import Field, StrictFloat, StrictInt, StrictStr
-from typing import Optional, Union
+from pydantic import Field, StrictStr
+from typing import Optional
 from typing_extensions import Annotated
 
-from docling_serving.api.models.response import JobResponse, ConversionStatus, JobSummary
-from docling_serving.api.parser import create_summary_from_job
-from docling_serving.workers.work_queue import PQueue, create_queue, JobStatus, Job
+from .models.response import JobResponse, JobSummary
+from .parser import create_summary_from_job
+from .dependencies import create_queue
+from ..workers.work_queue import PQueue, JobStatus
 
 router = APIRouter()
 

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from functools import lru_cache
 
 from fastapi import (
     BackgroundTasks,
@@ -28,7 +27,8 @@ from .api import (
     router_tasks,
     router_clear,
 )
-from .workers.work_queue import LocalQueue, create_queue
+from .workers.work_queue_local import LocalQueue
+from .api.dependencies import create_queue
 
 
 # Set up custom logging as we'll be intermixes with FastAPI/Uvicorn's logging
