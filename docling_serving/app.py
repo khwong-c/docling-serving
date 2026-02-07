@@ -78,7 +78,7 @@ def create_app():
         redoc_url="/docs",
         lifespan=lifespan,
     )
-    # app.include_router(router_health)
+    app.include_router(router_health)
     app.include_router(router_convert)
     app.include_router(router_tasks)
     # app.include_router(router_clear)
