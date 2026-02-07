@@ -5,7 +5,6 @@ from pydantic import Field, StrictFloat, StrictInt, StrictStr
 from typing import Optional, Union
 from typing_extensions import Annotated
 
-from docling_serve.datamodel.responses import TaskStatusResponse
 from docling_serving.api.models.response import JobResponse, ConversionStatus, JobSummary
 from docling_serving.workers.work_queue import PQueue, create_queue, JobStatus
 
@@ -15,7 +14,6 @@ router = APIRouter()
 @router.get(
     "/v1/status/poll/{task_id}",
     tags=["tasks"],
-    response_model=TaskStatusResponse,
     summary="Task Status Poll",
     response_model_by_alias=True,
 )
@@ -26,7 +24,7 @@ async def task_status_poll_v1_status_poll_task_id_get(
         ] = Query(0.0,
                   description="Number of seconds to wait for a completed status.",
                   alias="wait"),
-) -> TaskStatusResponse:
+) -> str:
     raise HTTPException(status_code=501, detail="Not implemented")
 
 

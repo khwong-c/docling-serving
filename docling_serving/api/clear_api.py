@@ -1,7 +1,5 @@
 from fastapi import APIRouter, HTTPException
 
-from docling_serve.datamodel.responses import ClearResponse
-
 router = APIRouter()
 
 
@@ -11,7 +9,7 @@ router = APIRouter()
     summary="Clear Converters",
     response_model_by_alias=True,
 )
-async def clear_converters_v1_clear_converters_get() -> ClearResponse:
+async def clear_converters_v1_clear_converters_get() -> str:
     raise HTTPException(status_code=501, detail="Not implemented")
 
 
@@ -23,5 +21,5 @@ async def clear_converters_v1_clear_converters_get() -> ClearResponse:
 )
 async def clear_results_v1_clear_results_get(
         older_then: float = 3600,
-) -> ClearResponse:
+) -> str:
     raise HTTPException(status_code=501, detail="Not implemented")
