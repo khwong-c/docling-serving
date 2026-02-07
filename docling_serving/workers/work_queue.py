@@ -72,7 +72,7 @@ class LocalQueue(PQueue):
         return new_job
 
     async def shutdown(self):
-        self.q.shutdown(immediate=False)
+        self.q.shutdown(immediate=True)
         await self.q.join()
 
     async def start_worker(self):
@@ -88,18 +88,18 @@ class LocalQueue(PQueue):
             async with self.job_lock:
                 job = self.job_set.get(job.id)
                 job.status = JobStatus.PROCESSING
-            result = await asyncio.wait_for(
-                asyncio.to_thread(convert, job.request),
-                timeout=10,
-            )
+            result = await asyncio.to_thread(convert, job.request)
             async with self.job_lock:
                 job = self.job_set.get(job.id)
                 if job is not None:
-                    job.result = ConvertResponse(
-                        id=job.id,
-                        **result.dict(),
-                    )
-                    job.status = JobStatus.COMPLETED
+                    if isinstance(result, BaseException):
+                        job.status = JobStatus.FAILED
+                    else:
+                        job.result = ConvertResponse(
+                            id=job.id,
+                            **result.dict(),
+                        )
+                        job.status = JobStatus.COMPLETED
             self.q.task_done()
 
 

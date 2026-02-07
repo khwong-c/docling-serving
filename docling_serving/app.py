@@ -63,9 +63,6 @@ for handler in root_logger.handlers:  # Iterate through existing handlers
 _log = logging.getLogger(__name__)
 
 
-
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.job_queue = create_queue()
