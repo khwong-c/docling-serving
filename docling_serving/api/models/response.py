@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -24,6 +25,9 @@ class JobResponse(BaseModel):
     id: str
     status: ConversionStatus
     result: Optional[ConvertResponse] = None
+    create_time: datetime
+    complete_time: datetime | None = None
+    duration: float = 0.0
 
 
 class JobSummary(BaseModel):

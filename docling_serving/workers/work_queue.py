@@ -1,6 +1,7 @@
 import logging
 import uuid
 from abc import abstractmethod
+import datetime
 from enum import Enum
 from functools import lru_cache
 from typing import Protocol
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 
 from docling_serving.api.models.request import ConvertRequest
 from docling_serving.api.models.response import ConvertResponse
+from docling_serving.settings import docling_serve_settings
 from docling_serving.workers.convert import convert
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,8 @@ class Job(BaseModel):
     status: JobStatus = JobStatus.QUEUED
     request: ConvertRequest
     result: ConvertResponse | None = None
+    create_time: datetime.datetime
+    complete_time: datetime.datetime | None = None
 
 
 class PQueue(Protocol):
@@ -35,7 +39,7 @@ class PQueue(Protocol):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_job(self, job_id: str) -> Job | None:
+    async def get_job(self, job_id: str, cleanup: bool = False) -> Job | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -48,23 +52,46 @@ class PQueue(Protocol):
 
 
 class LocalQueue(PQueue):
+    CHECK_INTERVAL = 30
+
     def __init__(self):
         self.q: asyncio.Queue[Job] = asyncio.Queue()
         self.job_set: dict[str, Job] = {}
         self.job_lock = asyncio.Lock()
 
+        job_settings = docling_serve_settings.job_settings
+        self.clean_after_retrieve = job_settings.clean_after_retrieve
+        self.clean_after_interval = job_settings.clean_after_interval
+        self.force_clean_after_interval = job_settings.force_clean_after_interval
+
     async def get_jobs(self) -> list[Job]:
         async with self.job_lock:
             return list(self.job_set.values())
 
-    async def get_job(self, job_id: str) -> Job | None:
+    async def get_job(self, job_id: str, cleanup: bool = False) -> Job | None:
         async with self.job_lock:
-            return self.job_set.get(job_id)
+            j = self.job_set.get(job_id)
+            if j is None:
+                return None
+
+            if j.status not in {JobStatus.COMPLETED, JobStatus.FAILED}:
+                return j
+
+            if not cleanup:
+                return j
+
+            completed_for = datetime.datetime.now(datetime.UTC) - j.complete_time
+            expired = completed_for.total_seconds() > self.clean_after_interval
+            if self.clean_after_retrieve or expired:
+                self.job_set.pop(job_id)
+
+            return j
 
     async def enqueue_job(self, req: ConvertRequest) -> Job | None:
         new_job = Job(
             id=str(uuid.uuid4()),
             request=req,
+            create_time=datetime.datetime.now(datetime.UTC),
         )
         async with self.job_lock:
             self.job_set[new_job.id] = new_job
@@ -75,7 +102,25 @@ class LocalQueue(PQueue):
         self.q.shutdown(immediate=True)
         await self.q.join()
 
+    async def cleanup_routine(self):
+        while True:
+            await asyncio.sleep(self.CHECK_INTERVAL)
+            jobs = await self.get_jobs()
+            finished_job = [
+                job for job in jobs
+                if job.status in {JobStatus.COMPLETED, JobStatus.FAILED}
+            ]
+            cur_time = datetime.datetime.now(datetime.UTC)
+            expired_jobs = [
+                job for job in finished_job
+                if (cur_time - job.complete_time).total_seconds() > self.force_clean_after_interval
+            ]
+            async with self.job_lock:
+                for job in expired_jobs:
+                    self.job_set.pop(job.id)
+
     async def start_worker(self):
+        clean_task = asyncio.create_task(self.cleanup_routine())
         while True:
             try:
                 job = await self.q.get()
@@ -92,6 +137,7 @@ class LocalQueue(PQueue):
             async with self.job_lock:
                 job = self.job_set.get(job.id)
                 if job is not None:
+                    job.complete_time = datetime.datetime.now(datetime.UTC)
                     if isinstance(result, BaseException):
                         job.status = JobStatus.FAILED
                     else:
@@ -101,6 +147,7 @@ class LocalQueue(PQueue):
                         )
                         job.status = JobStatus.COMPLETED
             self.q.task_done()
+        clean_task.cancel()
 
 
 @lru_cache
