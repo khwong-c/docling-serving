@@ -1,7 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, Path, Query, Depends, HTTPException
-from pydantic import Field, StrictStr
+from pydantic import Field, StrictStr, BaseModel
 from typing import Optional
 from typing_extensions import Annotated
 
@@ -11,6 +11,10 @@ from .dependencies import create_queue
 from ..workers.work_queue import PQueue, JobStatus
 
 router = APIRouter()
+
+
+class ClearCompletedResponse(BaseModel):
+    msg: str = "Completed jobs cleared successfully"
 
 
 @router.get(
@@ -75,3 +79,21 @@ async def job_list_handler(
 ) -> list[JobSummary]:
     jobs = await queue.get_jobs()
     return [create_summary_from_job(job) for job in jobs]
+
+
+@router.delete(
+    "/v1/completed",
+    tags=["tasks"],
+    summary="Clear Completed Jobs",
+    response_model_by_alias=True,
+)
+async def clear_completed(
+        older_than: Annotated[Optional[int], Field(
+            description="Number of seconds considered as expired to be cleared.")
+        ] = Query(3600,
+                  description="Number of seconds considered as expired to be cleared.",
+                  alias="older_than"),
+        queue: PQueue = Depends(create_queue),
+) -> ClearCompletedResponse:
+    await queue.clear_completed(older_than)
+    return ClearCompletedResponse()

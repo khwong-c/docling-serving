@@ -50,4 +50,6 @@ class PQueue(Protocol):
     async def start_worker(self):
         raise NotImplementedError
 
-
+    @abstractmethod
+    async def clear_completed(self, older_than: int):
+        raise NotImplementedError

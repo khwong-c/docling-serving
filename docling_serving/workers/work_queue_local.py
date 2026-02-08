@@ -12,6 +12,7 @@ from docling_serving.workers.work_queue import PQueue, Job, JobStatus, logger
 
 class LocalQueue(PQueue):
     CHECK_INTERVAL = 30
+    COMPLETED_STATE = {JobStatus.COMPLETED, JobStatus.FAILED}
 
     def __init__(self):
         self.q: asyncio.Queue[Job] = asyncio.Queue()
@@ -33,7 +34,7 @@ class LocalQueue(PQueue):
             if j is None:
                 return None
 
-            if j.status not in {JobStatus.COMPLETED, JobStatus.FAILED}:
+            if j.status not in self.COMPLETED_STATE:
                 return j
 
             if not cleanup:
@@ -58,6 +59,15 @@ class LocalQueue(PQueue):
             self.job_set[new_job.id] = new_job
         await self.q.put(new_job)
         return new_job
+
+    async def clear_completed(self, older_than: int):
+        for job_id, job in self.job_set.items():
+            if job.status not in self.COMPLETED_STATE:
+                continue
+            completed_for = datetime.datetime.now(datetime.UTC) - job.complete_time
+            expired = completed_for.total_seconds() > older_than
+            if expired:
+                self.job_set.pop(job_id)
 
     async def shutdown(self):
         self.q.shutdown(immediate=True)

@@ -26,7 +26,6 @@ from .api import (
     router_health,
     router_convert,
     router_tasks,
-    router_clear,
 )
 from .workers.work_queue_local import LocalQueue
 from .api.dependencies import create_queue

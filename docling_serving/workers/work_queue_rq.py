@@ -32,6 +32,8 @@ class RQQueue(PQueue):
         RQJobStatus.CANCELED: JobStatus.FAILED,
     }
 
+    COMPLETED_STATE = {JobStatus.COMPLETED, JobStatus.FAILED}
+
     def __init__(self):
         super().__init__()
         job_settings = docling_serve_settings.job_settings
@@ -83,13 +85,13 @@ class RQQueue(PQueue):
             complete_time=j.ended_at,
         )
 
-        if job.status not in {JobStatus.COMPLETED, JobStatus.FAILED}:
+        if job.status not in self.COMPLETED_STATE:
             return job
 
         if not cleanup:
             return job
         completed_for = datetime.datetime.now(datetime.UTC) - (
-            job.complete_time if job.complete_time is not None else job.create_time
+                job.complete_time or job.create_time
         )
         expired = completed_for.total_seconds() > self.clean_after_interval
         if self.clean_after_retrieve or expired:
@@ -114,6 +116,27 @@ class RQQueue(PQueue):
             request=req,
             create_time=new_job.created_at,
         )
+
+    async def clear_completed(self, older_than: int):
+        all_ids = self.q.finished_job_registry.get_job_ids(cleanup=False) + \
+                  self.q.canceled_job_registry.get_job_ids(cleanup=False) + \
+                  self.q.failed_job_registry.get_job_ids(cleanup=False)
+        for job_id in all_ids:
+            job = self.q.fetch_job(job_id)
+            if job is None:
+                continue
+
+            if self.STATUS_MAP[job.get_status(False)] not in self.COMPLETED_STATE:
+                continue
+
+            completed_for = datetime.datetime.now(datetime.UTC) - (
+                    job.ended_at or job.started_at or job.created_at
+            )
+            expired = completed_for.total_seconds() > older_than
+            if self.clean_after_retrieve or expired:
+                self.q.remove(job.id)
+                RQResult.delete_all(job)
+                job.delete()
 
     async def shutdown(self):
         if self.worker_task is None:
