@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from docling.datamodel.base_models import OutputFormat
+from docling.datamodel.pipeline_options import RapidOcrOptions
 from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
 from docling_core.utils.file import resolve_source_to_path, resolve_source_to_stream
@@ -29,6 +30,10 @@ def convert_with_exception(
     engine, pipe_option = None, req.options.html_pipeline
     if pipe_type == PipelineType.PDF:
         engine, pipe_option = req.options.pdf_engine, req.options.pdf_pipeline
+        pipe_option.ocr_options=RapidOcrOptions(
+            lang=["english"],
+            backend="torch",
+        )
     convertor = manager.get_converter(
         pipe_type, pipe_option, engine,
     )
