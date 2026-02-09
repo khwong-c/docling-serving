@@ -1,0 +1,17 @@
+{{- if .Values.modelCache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "deployment.fullname" . }}-model-cache-pvc
+  labels:
+    {{- include "deployment.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.modelCache.accessMode }}
+  {{- if .Values.modelCache.storageClass | quote }}
+  storageClassName: {{ .Values.modelCache.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.modelCache.size }}
+{{- end }}

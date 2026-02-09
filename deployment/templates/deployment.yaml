@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "deployment.fullname" . }}
+  labels:
+    {{- include "deployment.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "deployment.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "deployment.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "deployment.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+      {{- if .Values.modelCache.enabled }}
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "deployment.fullname" . }}-model-cache-pvc
+      {{- end }}
+
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: "DOCLING_SERVING_ASYNC_ENGINE"
+              value: {{ .Values.queueEngine.type | quote }}
+            - name: "DOCLING_SERVING_RQ_SETTINGS__HOST"
+              value: {{if not .Values.redis.enabled}}{{ .Values.queueEngine.redisHost | quote }}{{else}}"{{ .Release.Name }}-redis-master"{{end}}
+            - name: "DOCLING_SERVING_RQ_SETTINGS__PORT"
+              value: {{if not .Values.redis.enabled}}{{ .Values.queueEngine.redisPort | quote }}{{else}}"6379"{{end}}
+            - name: "DOCLING_SERVING_RQ_SETTINGS__DB"
+              value: {{ .Values.queueEngine.db | quote }}
+            - name: "DOCLING_SERVING_RQ_SETTINGS__QUEUE_NAME"
+              value: {{ .Values.queueEngine.queueName | quote }}
+
+            - name: "DOCLING_SERVING_JOB_SETTINGS__CLEAN_AFTER_RETRIEVE"
+              value: {{ .Values.jobConfig.cleanAfterRetrieve | quote }}
+            - name: "DOCLING_SERVING_JOB_SETTINGS__CLEAN_AFTER_INTERVAL"
+              value: {{ .Values.jobConfig.cleanAfterInterval | quote }}
+            - name: "DOCLING_SERVING_JOB_SETTINGS__FORCE_CLEAN_AFTER_INTERVAL"
+              value: {{ .Values.jobConfig.forceCleanAfterInterval | quote }}
+
+            - name: DOCLING_SERVING_ARTIFACTS_PATH
+              value: {{ .Values.modelCache.mountPath }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          {{- if .Values.modelCache.enabled }}
+            - name: model-cache
+              mountPath: {{ .Values.modelCache.mountPath }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

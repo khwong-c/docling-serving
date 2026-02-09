@@ -1,0 +1,62 @@
+{{- if and .Values.modelCache.enabled .Values.modelCache.preloadJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "deployment.fullname" . }}-model-loader
+  labels:
+    {{- include "deployment.labels" . | nindent 4 }}
+    app.kubernetes.io/component: model-loader
+spec:
+  {{- if .Values.modelCache.preloadJob.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.modelCache.preloadJob.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "deployment.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: model-loader
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+        - name: model-loader
+          {{- if .Values.modelCache.preloadJob.image.repository }}
+          image: "{{ .Values.modelCache.preloadJob.image.repository }}:{{ .Values.modelCache.preloadJob.image.tag | default .Chart.AppVersion }}"
+          {{- else }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          {{- end }}
+          {{- if .Values.modelCache.preloadJob.image.pullPolicy | default "" }}
+          imagePullPolicy: {{ .Values.modelCache.preloadJob.image.pullPolicy }}
+          {{- else }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- end }}
+          command:
+            - uv
+            - run
+            - --no-project
+            - docling-tools
+            - models
+            - download
+            - '--output-dir={{ .Values.modelCache.mountPath }}'
+            {{- if .Values.modelCache.preloadJob.all }}
+            - '--all'
+            {{- else }}
+            {{- range .Values.modelCache.preloadJob.models }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+            - name: model-cache
+              mountPath: {{ .Values.modelCache.mountPath }}
+          {{- with .Values.modelCache.preloadJob.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "deployment.fullname" . }}-model-cache-pvc
+{{- end }}
