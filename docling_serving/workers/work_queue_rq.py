@@ -1,6 +1,10 @@
 import asyncio
+import contextvars
 import datetime
+import functools
 import signal
+from asyncio import events
+from concurrent.futures.thread import ThreadPoolExecutor
 
 from redis import Redis
 from rq import Queue, SimpleWorker
@@ -51,6 +55,7 @@ class RQQueue(PQueue):
             password=settings.password,
         )
         self.q = Queue(settings.queue_name, connection=self.redis)
+        self.executor = ThreadPoolExecutor()
         self.workers = [
             PatchedSimpleWorker(queues=[self.q])
             for _ in range(self.num_of_workers)
@@ -154,11 +159,18 @@ class RQQueue(PQueue):
             *self.worker_tasks,
             return_exceptions=True,
         )
+        self.executor.shutdown(wait=True)
 
     async def start_worker(self):
+        async def to_thread(func, *args, **kwargs):
+            loop = events.get_running_loop()
+            ctx = contextvars.copy_context()
+            func_call = functools.partial(ctx.run, func, *args, **kwargs)
+            return await loop.run_in_executor(self.executor, func_call)
+
         self.worker_tasks = [
             asyncio.create_task(
-                asyncio.to_thread(worker.work)
+                to_thread(worker.work)
             )
             for worker in self.workers
         ]
