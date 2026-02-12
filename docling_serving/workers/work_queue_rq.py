@@ -36,6 +36,8 @@ class RQQueue(PQueue):
 
     def __init__(self):
         super().__init__()
+        self.num_of_workers = docling_serve_settings.concurrent_workers
+
         job_settings = docling_serve_settings.job_settings
         self.clean_after_retrieve = job_settings.clean_after_retrieve
         self.clean_after_interval = job_settings.clean_after_interval
@@ -49,9 +51,12 @@ class RQQueue(PQueue):
             password=settings.password,
         )
         self.q = Queue(settings.queue_name, connection=self.redis)
-        self.worker = PatchedSimpleWorker(queues=[self.q])
+        self.workers = [
+            PatchedSimpleWorker(queues=[self.q])
+            for _ in range(self.num_of_workers)
+        ]
         self.done = asyncio.Event()
-        self.worker_task: asyncio.Task | None = None
+        self.worker_tasks: list[asyncio.Task] = []
 
     async def get_jobs(self) -> list[Job]:
         all_ids = self.q.get_job_ids() + self.q.deferred_job_registry.get_job_ids(cleanup=False) + \
@@ -139,20 +144,24 @@ class RQQueue(PQueue):
                 job.delete()
 
     async def shutdown(self):
-        if self.worker_task is None:
+        if len(self.worker_tasks) == 0:
             return
-        self.worker.request_stop(signal.SIGINT, None)
-        self.worker.teardown()
-        self.worker_task.cancel()
-        await asyncio.wait(
-            [self.worker_task],
-            return_when=asyncio.FIRST_EXCEPTION,
+        for task, worker in zip(self.worker_tasks, self.workers):
+            worker.request_stop(signal.SIGINT, None)
+            worker.teardown()
+            task.cancel()
+        await asyncio.gather(
+            *self.worker_tasks,
+            return_exceptions=True,
         )
 
     async def start_worker(self):
-        self.worker_task = asyncio.create_task(
-            asyncio.to_thread(self.worker.work)
-        )
+        self.worker_tasks = [
+            asyncio.create_task(
+                asyncio.to_thread(worker.work)
+            )
+            for worker in self.workers
+        ]
 
 
 class PatchedSimpleWorker(SimpleWorker):

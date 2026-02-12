@@ -50,6 +50,7 @@ class DoclingServeSettings(BaseSettings):
 
     async_engine: AsyncEngine = AsyncEngine.LOCAL
     rq_settings: RQSettings = RQSettings()
+    concurrent_workers: int = 2
 
 
 uvicorn_settings = UvicornSettings()
